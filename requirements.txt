@@ -1,0 +1,8 @@
+numpy
+torch
+torchvision
+pillow
+opencv-python
+pycocotools
+matplotlib
+tqdm
