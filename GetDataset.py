@@ -33,7 +33,7 @@ def download_annotations():
             print("✅ Аннотации загружены, распаковываем...")
             import zipfile
             with zipfile.ZipFile(zip_path, "r") as zip_ref:
-                zip_ref.extractall(ANNOTATIONS_DIR)
+                zip_ref.extractall('./')
             os.remove(zip_path)  # Удаляем ZIP после распаковки
         else:
             print("❌ Ошибка загрузки аннотаций COCO")
