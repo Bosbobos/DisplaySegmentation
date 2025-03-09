@@ -3,15 +3,15 @@ import shutil
 import random
 
 # Пути к исходным изображениям и маскам
-IMG_DIR = "coco_tv_images"
-MASK_DIR = "coco_tv_masks"
+IMG_DIR = "val_coco_tv_images"
+MASK_DIR = "val_coco_tv_masks"
 
 # Пути к новым папкам для валидации
-VAL_IMG_DIR = "val_coco_tv_images"
-VAL_MASK_DIR = "val_coco_tv_masks"
+VAL_IMG_DIR = "test_coco_tv_images"
+VAL_MASK_DIR = "test_coco_tv_masks"
 
 # Доля валидационных данных
-VAL_SPLIT = 0.2
+VAL_SPLIT = 0.5
 
 
 # ✅ Функция перемещения файлов валидации

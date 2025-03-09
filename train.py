@@ -13,6 +13,8 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import segmentation_models_pytorch as smp
 
+import re
+
 ##################################
 # CONFIGURATION
 ##################################
@@ -159,21 +161,33 @@ def plot_losses(train_losses: list, val_losses: list) -> None:
     plt.title("Training vs Validation Loss")
     plt.savefig("training_loss.png")  # Сохранение графика
     plt.pause(0.1)
-    plt.close()
-
 
 
 ##################################
 # MAIN TRAINING LOOP
 ##################################
+def load_checkpoint(model, optimizer):
+    checkpoints = sorted(glob.glob(os.path.join(CHECKPOINT_DIR, f"{MODEL_NAME}_epoch*.pth")))
+    if checkpoints:
+        latest_checkpoint = checkpoints[-2]
+        checkpoint_epoch = int(latest_checkpoint.split("_epoch")[1].split(".pth")[0])
+        print(f"📥 Загружаем чекпоинт: {latest_checkpoint}")
+        model.load_state_dict(torch.load(latest_checkpoint, map_location=DEVICE))
+        optimizer.load_state_dict(torch.load(latest_checkpoint.replace(".pth", "_optimizer.pth"), map_location=DEVICE))
+        return checkpoint_epoch
+    return 0
+
+
 def main():
     torch.multiprocessing.set_start_method("spawn", force=True)
 
     train_dataset = ScreenSegmentationDataset(TRAIN_IMG_DIR, TRAIN_MASK_DIR, transform=train_transform)
     val_dataset = ScreenSegmentationDataset(VAL_IMG_DIR, VAL_MASK_DIR, transform=val_transform)
 
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS, pin_memory=PIN_MEMORY)
-    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS, pin_memory=PIN_MEMORY)
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS,
+                              pin_memory=PIN_MEMORY)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS,
+                            pin_memory=PIN_MEMORY)
 
     print(f"✅ Датасет загружен: {len(train_dataset)} train, {len(val_dataset)} val")
 
@@ -186,21 +200,24 @@ def main():
     ).to(DEVICE)
 
     loss_function = smp.losses.TverskyLoss(mode="binary", alpha=0.7, beta=0.3, from_logits=True)
-    optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=5e-3)
+    optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-3)
 
-    scheduler = torch.optim.lr_scheduler.OneCycleLR(
-        optimizer, max_lr=1e-4, steps_per_epoch=len(train_loader), epochs=NUM_EPOCHS
-    )
+    scheduler = torch.optim.lr_scheduler.ChainedScheduler([
+        torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=1e-4, steps_per_epoch=len(train_loader), epochs=NUM_EPOCHS//2),
+        torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10, eta_min=1e-6)
+    ])
 
     scaler = torch.cuda.amp.GradScaler(enabled=MIXED_PRECISION)
 
-    # ✅ Добавляем списки для хранения ошибок
+    # ✅ Загружаем чекпоинт, если есть
+    start_epoch = load_checkpoint(model, optimizer)
+
     train_losses = []
     val_losses = []
 
     plt.ion()  # Включаем интерактивный режим
 
-    for epoch in range(NUM_EPOCHS):
+    for epoch in range(start_epoch, NUM_EPOCHS):
         print(f"\n🔄 Эпоха {epoch + 1}/{NUM_EPOCHS}")
         train_loss = train_one_epoch(train_loader, model, optimizer, loss_function, scaler)
         val_loss = validate_model(val_loader, model, loss_function, epoch)
@@ -214,11 +231,11 @@ def main():
         plot_losses(train_losses, val_losses)  # ✅ Построение графика
 
         if SAVE_MODEL and (epoch + 1) % 10 == 0:
-            torch.save(model.state_dict(), f"{CHECKPOINT_DIR}/{MODEL_NAME}_epoch{epoch+1}.pth")
+            torch.save(model.state_dict(), f"{CHECKPOINT_DIR}/{MODEL_NAME}_epoch{epoch + 1}.pth")
+            torch.save(optimizer.state_dict(), f"{CHECKPOINT_DIR}/{MODEL_NAME}_epoch{epoch + 1}_optimizer.pth")
 
     plt.ioff()
     print("🎉 Обучение завершено!")
-
 
 
 if __name__ == "__main__":
