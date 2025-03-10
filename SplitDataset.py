@@ -3,22 +3,29 @@ import shutil
 import random
 
 # Пути к исходным изображениям и маскам
-IMG_DIR = "val_coco_tv_images"
-MASK_DIR = "val_coco_tv_masks"
+IMG_DIR = "valid_images"
+MASK_DIR = "valid_masks"
 
-# Пути к новым папкам для валидации
-VAL_IMG_DIR = "test_coco_tv_images"
-VAL_MASK_DIR = "test_coco_tv_masks"
+# Пути к папкам для разделения выборки
+TRAIN_IMG_DIR = "train_images"
+TRAIN_MASK_DIR = "train_masks"
+VAL_IMG_DIR = "val_images"
+VAL_MASK_DIR = "val_masks"
+TEST_IMG_DIR = "test_images"
+TEST_MASK_DIR = "test_masks"
 
-# Доля валидационных данных
-VAL_SPLIT = 0.5
+# Доли данных
+TRAIN_SPLIT = 0.8
+VAL_SPLIT = 0.1  # 10% на валидацию
+TEST_SPLIT = 0.1  # 10% на тестирование
 
 
-# ✅ Функция перемещения файлов валидации
-def move_validation_data(img_dir, mask_dir, val_img_dir, val_mask_dir, val_split=0.2):
+# ✅ Функция разбиения данных
+def split_dataset(img_dir, mask_dir, train_img_dir, train_mask_dir, val_img_dir, val_mask_dir, test_img_dir,
+                  test_mask_dir):
     # Создаём папки, если их нет
-    os.makedirs(val_img_dir, exist_ok=True)
-    os.makedirs(val_mask_dir, exist_ok=True)
+    for folder in [train_img_dir, train_mask_dir, val_img_dir, val_mask_dir, test_img_dir, test_mask_dir]:
+        os.makedirs(folder, exist_ok=True)
 
     # Получаем список всех изображений
     images = sorted(os.listdir(img_dir))
@@ -30,20 +37,32 @@ def move_validation_data(img_dir, mask_dir, val_img_dir, val_mask_dir, val_split
     # Перемешиваем список для случайного разбиения
     random.shuffle(images)
 
-    # Количество файлов для валидации
-    val_size = int(len(images) * val_split)
+    # Определяем размеры выборок
+    total_size = len(images)
+    train_size = int(total_size * TRAIN_SPLIT)
+    val_size = int(total_size * VAL_SPLIT)
 
-    # Выбираем 20% данных для валидации
-    val_images = images[:val_size]
+    train_images = images[:train_size]
+    val_images = images[train_size:train_size + val_size]
+    test_images = images[train_size + val_size:]  # Остаток уходит в тест
+
+    # ✅ Функция перемещения файлов
+    def move_files(file_list, src_img_dir, src_mask_dir, dst_img_dir, dst_mask_dir):
+        for img_name in file_list:
+            mask_name = img_name.replace(".jpg", ".png")  # Предполагаем, что маски в PNG
+            shutil.move(os.path.join(src_img_dir, img_name), os.path.join(dst_img_dir, img_name))
+            shutil.move(os.path.join(src_mask_dir, mask_name), os.path.join(dst_mask_dir, mask_name))
 
     # ✅ Перемещаем файлы
-    for img_name in val_images:
-        shutil.move(os.path.join(img_dir, img_name), os.path.join(val_img_dir, img_name))
-        shutil.move(os.path.join(mask_dir, img_name.replace(".jpg", ".png")),
-                    os.path.join(val_mask_dir, img_name.replace(".jpg", ".png")))
+    move_files(train_images, img_dir, mask_dir, train_img_dir, train_mask_dir)
+    move_files(val_images, img_dir, mask_dir, val_img_dir, val_mask_dir)
+    move_files(test_images, img_dir, mask_dir, test_img_dir, test_mask_dir)
 
-    print(f"✅ Файлы перемещены! {val_size} изображений валидации.")
+    print(f"✅ Разбиение завершено!")
+    print(f"📂 {train_size} изображений в тренировочной выборке")
+    print(f"📂 {val_size} изображений в валидационной выборке")
+    print(f"📂 {len(test_images)} изображений в тестовой выборке")
 
 
-# ✅ Запускаем перемещение
-move_validation_data(IMG_DIR, MASK_DIR, VAL_IMG_DIR, VAL_MASK_DIR, VAL_SPLIT)
+# ✅ Запускаем разбиение
+split_dataset(IMG_DIR, MASK_DIR, TRAIN_IMG_DIR, TRAIN_MASK_DIR, VAL_IMG_DIR, VAL_MASK_DIR, TEST_IMG_DIR, TEST_MASK_DIR)

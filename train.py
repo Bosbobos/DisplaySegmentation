@@ -20,10 +20,10 @@ import re
 ##################################
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-TRAIN_IMG_DIR = "coco_tv_images"
-TRAIN_MASK_DIR = "coco_tv_masks"
-VAL_IMG_DIR = "val_coco_tv_images"
-VAL_MASK_DIR = "val_coco_tv_masks"
+TRAIN_IMG_DIR = "train_images"
+TRAIN_MASK_DIR = "train_masks"
+VAL_IMG_DIR = "val_images"
+VAL_MASK_DIR = "val_masks"
 
 BATCH_SIZE = 16
 LEARNING_RATE = 5e-5  # Трансформеры требуют меньший LR
