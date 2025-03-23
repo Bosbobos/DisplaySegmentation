@@ -20,7 +20,7 @@ VAL_SPLIT = 0.1  # 10% на валидацию
 TEST_SPLIT = 0.1  # 10% на тестирование
 
 
-# ✅ Функция разбиения данных
+# Функция разбиения данных
 def split_dataset(img_dir, mask_dir, train_img_dir, train_mask_dir, val_img_dir, val_mask_dir, test_img_dir,
                   test_mask_dir):
     # Создаём папки, если их нет
@@ -46,23 +46,23 @@ def split_dataset(img_dir, mask_dir, train_img_dir, train_mask_dir, val_img_dir,
     val_images = images[train_size:train_size + val_size]
     test_images = images[train_size + val_size:]  # Остаток уходит в тест
 
-    # ✅ Функция перемещения файлов
+    # Функция перемещения файлов
     def move_files(file_list, src_img_dir, src_mask_dir, dst_img_dir, dst_mask_dir):
         for img_name in file_list:
             mask_name = img_name.replace(".jpg", ".png")  # Предполагаем, что маски в PNG
             shutil.move(os.path.join(src_img_dir, img_name), os.path.join(dst_img_dir, img_name))
             shutil.move(os.path.join(src_mask_dir, mask_name), os.path.join(dst_mask_dir, mask_name))
 
-    # ✅ Перемещаем файлы
+    # Перемещаем файлы
     move_files(train_images, img_dir, mask_dir, train_img_dir, train_mask_dir)
     move_files(val_images, img_dir, mask_dir, val_img_dir, val_mask_dir)
     move_files(test_images, img_dir, mask_dir, test_img_dir, test_mask_dir)
 
-    print(f"✅ Разбиение завершено!")
-    print(f"📂 {train_size} изображений в тренировочной выборке")
-    print(f"📂 {val_size} изображений в валидационной выборке")
-    print(f"📂 {len(test_images)} изображений в тестовой выборке")
+    print(f"Разбиение завершено!")
+    print(f"{train_size} изображений в тренировочной выборке")
+    print(f"{val_size} изображений в валидационной выборке")
+    print(f"{len(test_images)} изображений в тестовой выборке")
 
 
-# ✅ Запускаем разбиение
+# Запускаем разбиение
 split_dataset(IMG_DIR, MASK_DIR, TRAIN_IMG_DIR, TRAIN_MASK_DIR, VAL_IMG_DIR, VAL_MASK_DIR, TEST_IMG_DIR, TEST_MASK_DIR)

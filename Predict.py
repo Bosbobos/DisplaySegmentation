@@ -110,4 +110,4 @@ def generate_masks_and_evaluate(image_dir, mask_dir=None, model_path=None):
         print("Dice Loss не вычислен, так как нет масок для сравнения.")
 
 # Пример использования
-generate_masks_and_evaluate("MostImportant", None, "checkpoints/segformer_mit_b4_epoch20.pth")
+generate_masks_and_evaluate("test_images", 'test_masks', "checkpoints/segformer_mit_b4_epoch70.pth")

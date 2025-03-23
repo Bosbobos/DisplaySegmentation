@@ -1,76 +1,74 @@
 import os
-import cv2
 import shutil
-
-# Пути к папкам (замени на свои)
-MASKS_FOLDER = "coco_tv_masks"
-IMAGES_FOLDER = "coco_tv_images"
-OUTPUT_MASKS_FOLDER = "valid_masks"
-OUTPUT_IMAGES_FOLDER = "valid_images"
-
-# Создаем папки, если их нет
-os.makedirs(OUTPUT_MASKS_FOLDER, exist_ok=True)
-os.makedirs(OUTPUT_IMAGES_FOLDER, exist_ok=True)
+import cv2
+import numpy as np
 
 
-def relaxed_analyze_mask(mask):
-    """Менее строгая проверка маски: учитывает форму, отверстия и заполненность"""
-    if mask is None:
-        return False
+def is_valid_mask(mask, min_area_ratio=0.01):
+    # Находим контуры на маске
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    h, w = mask.shape
-    total_area = h * w
-
-    # Преобразуем в бинарное изображение
-    _, binary_mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
-
-    # Находим контуры
-    contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    contours = [cnt for cnt in contours if cv2.contourArea(cnt) > 0.05 * total_area]  # Фильтр 5% площади
-
+    # Проверяем, что ровно один контур
     if len(contours) != 1:
         return False
 
-    cnt = contours[0]
-    area = cv2.contourArea(cnt)
+    contour = contours[0]
 
-    if area > 0.95 * total_area:
+    # Проверяем, что контур выпуклый
+    if not cv2.isContourConvex(contour):
         return False
 
-    # Проверка формы
-    x, y, w_obj, h_obj = cv2.boundingRect(cnt)
-    aspect_ratio = max(w_obj, h_obj) / min(w_obj, h_obj + 1e-5)
+    # Аппроксимируем контур до многоугольника
+    epsilon = 0.02 * cv2.arcLength(contour, True)
+    approx = cv2.approxPolyDP(contour, epsilon, True)
 
-    if aspect_ratio > 2:  # Менее строгая проверка формы
+    # Проверяем, что это четырехугольник
+    if len(approx) != 4:
         return False
 
-    # Проверяем отверстия
-    holes, hierarchy = cv2.findContours(binary_mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
-    hole_areas = [cv2.contourArea(h) for h in holes[1:]]  # Пропускаем основной контур
+    # Проверяем, что все углы на изображении
+    height, width = mask.shape[:2]
+    for point in approx:
+        x, y = point[0]
+        if x < 0 or y < 0 or x >= width or y >= height:
+            return False
 
-    if len(hole_areas) > 2 or sum(hole_areas) > 0.05 * total_area:  # Разрешаем до 2 отверстий, но не больше 5% площади
-        return False
-
-    # Заполняемость bounding box
-    bbox_area = w_obj * h_obj
-    fill_ratio = area / bbox_area
-
-    if fill_ratio < 0.8:  # Разрешаем ≥ 80% заполненности
+    # Проверяем, что площадь маски больше минимального порога
+    image_area = height * width
+    area = cv2.contourArea(contour)
+    if area < min_area_ratio * image_area:
         return False
 
     return True
 
 
-# Обработка файлов
-for mask_filename in os.listdir(MASKS_FOLDER):
-    mask_path = os.path.join(MASKS_FOLDER, mask_filename)
+def process_masks(input_folder, output_folder, image_folder, output_image_folder, min_area_ratio=0.01):
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+    if not os.path.exists(output_image_folder):
+        os.makedirs(output_image_folder)
 
-    mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
-    if relaxed_analyze_mask(mask):
-        shutil.copy(mask_path, os.path.join(OUTPUT_MASKS_FOLDER, mask_filename))
+    for filename in os.listdir(input_folder):
+        if filename.endswith('.png'):
+            image_path = os.path.join(input_folder, filename)
+            mask = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
 
-        image_path = os.path.join(IMAGES_FOLDER, mask_filename.replace(".png", ".jpg"))  # Или другой формат
-        if os.path.exists(image_path):
-            shutil.copy(image_path, os.path.join(OUTPUT_IMAGES_FOLDER, os.path.basename(image_path)))
+            if mask is None:
+                continue
 
-print("Фильтрация завершена! Теперь должно пройти больше изображений.")
+            if is_valid_mask(mask, min_area_ratio):
+                shutil.copy(image_path, os.path.join(output_folder, filename))
+
+                # Копирование соответствующего изображения
+                image_file_path = os.path.join(image_folder, filename)
+                if os.path.exists(image_file_path):
+                    shutil.copy(image_file_path, os.path.join(output_image_folder, filename.replace('.png', '.jpg')))
+
+
+# Укажите пути к папкам
+input_folder = 'coco_tv_masks'  # Папка с масками
+output_folder = 'valid_masks'  # Папка для отфильтрованных масок
+image_folder = 'coco_tv_images'  # Папка с исходными изображениями
+output_image_folder = 'valid_images'  # Папка для соответствующих изображений
+
+process_masks(input_folder, output_folder, image_folder, output_image_folder)

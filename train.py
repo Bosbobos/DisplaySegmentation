@@ -2,7 +2,6 @@ import os
 import glob
 import cv2
 import torch
-import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,8 +11,6 @@ from tqdm import tqdm
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import segmentation_models_pytorch as smp
-
-import re
 
 ##################################
 # CONFIGURATION
@@ -27,7 +24,7 @@ VAL_MASK_DIR = "val_masks"
 
 BATCH_SIZE = 16
 LEARNING_RATE = 5e-5  # Трансформеры требуют меньший LR
-NUM_EPOCHS = 50
+NUM_EPOCHS = 70
 IMAGE_SIZE = (256, 256)  # (ширина, высота)
 NUM_WORKERS = 6
 PIN_MEMORY = True
@@ -74,7 +71,7 @@ class ScreenSegmentationDataset(Dataset):
         mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
         if mask is None:
             raise FileNotFoundError(f"Маска не найдена: {mask_path}")
-        mask = (mask / 255.0).astype(np.float32)  # Нормализация в 0-1 (SegFormer требует float32)
+        mask = (mask / 255.0).astype(np.float32)
 
         if self.transform:
             augmented = self.transform(image=image, mask=mask)
@@ -87,10 +84,10 @@ class ScreenSegmentationDataset(Dataset):
 # AUGMENTATIONS
 ##################################
 train_transform = A.Compose([
-    A.Resize(IMAGE_SIZE[1], IMAGE_SIZE[0]),  # Приведение к стандартному размеру
+    A.Resize(IMAGE_SIZE[1], IMAGE_SIZE[0]),
     A.HorizontalFlip(p=0.5),
     A.RandomBrightnessContrast(p=0.2),
-    A.Affine(scale=(0.8, 1.2), translate_percent=(0.1, 0.1), rotate=(-20, 20), p=0.5),  # Исправлено
+    A.Affine(scale=(0.8, 1.2), translate_percent=(0.1, 0.1), rotate=(-20, 20), p=0.5),
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2(),
 ])
@@ -130,7 +127,7 @@ def train_one_epoch(train_loader, model, optimizer, loss_fn, scaler) -> float:
 ##################################
 # VALIDATION FUNCTION
 ##################################
-def validate_model(val_loader, model, loss_fn, current_epoch) -> float:
+def validate_model(val_loader, model, loss_fn) -> float:
     model.eval()
     total_loss = 0.0
 
@@ -189,7 +186,7 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS,
                             pin_memory=PIN_MEMORY)
 
-    print(f"✅ Датасет загружен: {len(train_dataset)} train, {len(val_dataset)} val")
+    print(f"Датасет загружен: {len(train_dataset)} train, {len(val_dataset)} val")
 
     model = smp.Segformer(
         encoder_name="mit_b4",
@@ -199,7 +196,7 @@ def main():
         decoder_dropout=0.3
     ).to(DEVICE)
 
-    loss_function = smp.losses.TverskyLoss(mode="binary", alpha=0.7, beta=0.3, from_logits=True)
+    loss_function = smp.losses.TverskyLoss(mode="binary", alpha=0.75, beta=0.25, from_logits=True)
     optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-3)
 
     scheduler = torch.optim.lr_scheduler.ChainedScheduler([
@@ -209,7 +206,7 @@ def main():
 
     scaler = torch.cuda.amp.GradScaler(enabled=MIXED_PRECISION)
 
-    # ✅ Загружаем чекпоинт, если есть
+    # Загружаем чекпоинт, если есть
     start_epoch = load_checkpoint(model, optimizer)
 
     train_losses = []
@@ -220,7 +217,7 @@ def main():
     for epoch in range(start_epoch, NUM_EPOCHS):
         print(f"\n🔄 Эпоха {epoch + 1}/{NUM_EPOCHS}")
         train_loss = train_one_epoch(train_loader, model, optimizer, loss_function, scaler)
-        val_loss = validate_model(val_loader, model, loss_function, epoch)
+        val_loss = validate_model(val_loader, model, loss_function)
 
         train_losses.append(train_loss)
         val_losses.append(val_loss)
@@ -228,14 +225,14 @@ def main():
         print(f"Epoch [{epoch + 1}/{NUM_EPOCHS}] - Train Loss: {train_loss:.4f} - Val Loss: {val_loss:.4f}")
 
         scheduler.step()
-        plot_losses(train_losses, val_losses)  # ✅ Построение графика
+        plot_losses(train_losses, val_losses)  # Построение графика
 
         if SAVE_MODEL and (epoch + 1) % 10 == 0:
             torch.save(model.state_dict(), f"{CHECKPOINT_DIR}/{MODEL_NAME}_epoch{epoch + 1}.pth")
             torch.save(optimizer.state_dict(), f"{CHECKPOINT_DIR}/{MODEL_NAME}_epoch{epoch + 1}_optimizer.pth")
 
     plt.ioff()
-    print("🎉 Обучение завершено!")
+    print("Обучение завершено!")
 
 
 if __name__ == "__main__":

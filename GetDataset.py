@@ -20,26 +20,26 @@ os.makedirs(ANNOTATIONS_DIR, exist_ok=True)
 os.makedirs(OUTPUT_IMAGES_DIR, exist_ok=True)
 os.makedirs(OUTPUT_MASKS_DIR, exist_ok=True)
 
-# ✅ Функция для скачивания аннотаций COCO
+# Функция для скачивания аннотаций COCO
 def download_annotations():
     zip_path = os.path.join(ANNOTATIONS_DIR, "annotations_trainval2017.zip")
     if not os.path.exists(ANNOTATIONS_PATH):  # Если JSON ещё не скачан
-        print("📥 Аннотации COCO не найдены, скачиваем...")
+        print("Аннотации COCO не найдены, скачиваем...")
         response = requests.get(ANNOTATIONS_URL, stream=True)
         if response.status_code == 200:
             with open(zip_path, "wb") as f:
                 for chunk in response.iter_content(1024):
                     f.write(chunk)
-            print("✅ Аннотации загружены, распаковываем...")
+            print("Аннотации загружены, распаковываем...")
             import zipfile
             with zipfile.ZipFile(zip_path, "r") as zip_ref:
                 zip_ref.extractall('./')
             os.remove(zip_path)  # Удаляем ZIP после распаковки
         else:
-            print("❌ Ошибка загрузки аннотаций COCO")
+            print("Ошибка загрузки аннотаций COCO")
             exit()
     else:
-        print("✅ Аннотации COCO уже загружены.")
+        print("Аннотации COCO уже загружены.")
 
 # Скачиваем аннотации, если их нет
 download_annotations()
@@ -74,7 +74,7 @@ def process_image(img_data):
 
     # Если изображение и маска уже есть – пропускаем
     elif os.path.exists(save_img_path) and os.path.exists(save_mask_path):
-        return f"🔹 Уже обработано: {img_filename}"
+        return f"Уже обработано: {img_filename}"
 
     # Скачивание изображения (если не скачано)
     else:
@@ -84,7 +84,7 @@ def process_image(img_data):
                 for chunk in response.iter_content(1024):
                     f.write(chunk)
         else:
-            return f"❌ Ошибка скачивания: {img_filename}"
+            return f"Ошибка скачивания: {img_filename}"
 
     # Создаём пустую маску
     mask = np.zeros((img_data["height"], img_data["width"]), dtype=np.uint8)
@@ -98,39 +98,39 @@ def process_image(img_data):
             segmentation = ann["segmentation"]
 
             try:
-                # 🎯 1. Polygon (список координат)
+                # 1. Polygon (список координат)
                 if isinstance(segmentation, list):
                     for seg in segmentation:
                         pts = np.array(seg, np.int32).reshape((-1, 1, 2))
                         cv2.fillPoly(mask, [pts], 1)  # 1 - экран, 0 - фон
 
-                # 🎯 2. Обычный RLE (словарь)
+                # 2. Обычный RLE (словарь)
                 elif isinstance(segmentation, dict):
                     rle_mask = mask_utils.decode(segmentation)
                     mask[rle_mask > 0] = 1  # 1 - экран
 
-                # 🎯 3. Список RLE (его нужно декодировать)
+                # 3. Список RLE (его нужно декодировать)
                 elif isinstance(segmentation, list) and isinstance(segmentation[0], dict):
                     rle_combined = mask_utils.frPyObjects(segmentation, img_data["height"], img_data["width"])
                     rle_mask = mask_utils.decode(rle_combined)
                     mask[rle_mask > 0] = 1  # 1 - экран
 
                 else:
-                    print(f"⚠️ Неподдерживаемый формат сегментации в файле: {img_filename}")
+                    print(f"⚠Неподдерживаемый формат сегментации в файле: {img_filename}")
 
             except Exception as e:
-                print(f"❌ Ошибка обработки маски для {img_filename}: {e}")
+                print(f"Ошибка обработки маски для {img_filename}: {e}")
                 continue  # Пропускаем это изображение
 
     # Проверяем, не пустая ли маска
     if np.sum(mask) == 0:
-        print(f"⚠️ Пустая маска (удалена): {img_filename}")
-        return f"⚠️ Пустая маска (удалена): {img_filename}"
+        print(f"Пустая маска (удалена): {img_filename}")
+        return f"Пустая маска (удалена): {img_filename}"
 
     # Сохраняем маску
     cv2.imwrite(save_mask_path, mask * 255)  # 0 (фон), 255 (экран)
 
-    return f"✅ Готово: {img_filename}"
+    return f"Готово: {img_filename}"
 
 # Запускаем многопоточное скачивание и обработку
 with concurrent.futures.ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
@@ -140,4 +140,4 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
 for res in results:
     print(res)
 
-print("🎉 Все изображения загружены и маски созданы!")
+print("Все изображения загружены и маски созданы!")
